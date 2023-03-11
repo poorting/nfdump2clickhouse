@@ -1,0 +1,13 @@
+[DEFAULT]
+# By default watch.py logs to console.
+# Specify a log file to log to file instead
+#logfile=/var/log/nfdump2clickhouse.log
+
+# Default db.table to insert it into clickhouse
+# ch_table=nfsen.flows
+
+#[router1]
+#watchdir=watch
+#
+#[router2]
+#watchdir=/nfsen/partition-data/live/router2
