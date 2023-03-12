@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 nfdump2clickhouse.conf
+nfdump2clickhouse.service
 .idea
