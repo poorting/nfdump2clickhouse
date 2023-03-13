@@ -56,9 +56,14 @@ These commands are also in the schema.txt file.
 
 If you want to store flows for a different amount of days than 90, adjust the final line accordingly.
 
-## Python virtual environment
+## nfdump2clickhouse
 
-## Configuration
+### Python virtual environment
 
-## Testing
+### Configuration
 
+### Testing
+
+### Installing as service
+
+``sudo ./install.sh``
