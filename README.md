@@ -28,6 +28,8 @@ In one sentence: **nfdump2clickhouse converts raw flow data (nfcapd files) as th
 
 Just the raw data without aggregation or filtering. No more, no less. That is it. 
 
+![nfdump2parquet process](n2c-process.png)
+
 Please be aware that this means that flows are 'one-sided', so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around.
 
 In practice this is not a problem, since the purpose is to identify timeframes where communication with a malicious host has taken place. So if you know that some external IP address was abused as a C2 server in a specific timeframe (say last month), you can simply search for all source IP addresses of flows that have that IP address as a destination within the last month.    
