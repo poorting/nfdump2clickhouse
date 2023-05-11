@@ -20,15 +20,37 @@ The question then quickly becomes: is there a better way to hunt down appearance
 This of course is analogous to finding a needle in a haystack; which is exactly what an analytical database is designed to do: processing large volumes of data either for analysis or for finding specific occurrences. 
 In order to do that you need to have the relevant data in an analytical database to start with, which is where nfdump2clickhouse comes in!
 
-It is obvious from the name that [clickhouse](https://clickhouse.com/#getting_started) is the analytical database of choice. Simply because it is easy to install (or dockerize) on a fairly standard (but preferably big and powerful) VM or machine, without the need to setup and manage entire clusters; as some other big(gish) data 'solutions' will have you do (which seems rather silly and over the top if the only goal is to be able to pinpoint timeframes). 
+It is obvious from the name that [clickhouse](https://clickhouse.com/#getting_started) is the analytical database of choice. Simply because it is easy to install (or dockerize) on a fairly standard (but preferably big and powerful) VM or machine, without the need to setup and manage entire clusters; as some other big(gish) data 'solutions' will have you do (which seems rather silly and over the top if the only goal is to be able to pinpoint timeframes for further analysis). 
 
 ## What it does
 
-In one sentence: **nfdump2clickhouse converts raw flow data (nfcapd files) as they come in, into parquet files and inserts those into clickhouse.**
-
+**nfdump2clickhouse converts raw flow data (nfcapd files) as they come in, into parquet files and inserts those into clickhouse.**  
 Just the raw data without aggregation or filtering. No more, no less. That is it. 
 
+The image below (adapted from a [paper describing the principe of operation of nfdump tools](https://www.first.org/resources/papers/conference2006/haag-peter-papers.pdf)), shows the relationship between nfdump/nfcapd, nfdump2clickhouse and clickhouse:
+
+* **nfcapd** receives the netflow input streams from the various sources (*ident1* through *ident3* in the figure) and stores them on disk. It does this in a time based fashion by rotating and renaming the output file every  n minutes (typically 5 minutes) and renaming the output file with the time stamp (*YYYYMMddhhmm*) of the interval. So a file named **nfcapd.202305081205** contains data from the 8th of May 2023 12:05 onwards (for 5 minutes, so data until 12:09:59).
+
+* **nfdump2clickhouse** watches the directories where the nfcapd files are stored for these rotations (renaming actions) and converts those freshly stored files. First to CSV format (using nfdump) and subsequently to parquet format. It then invokes the clickhouse-client to ingest the resulting parquet file into the clickhouse database.
+
 ![nfdump2parquet process](n2c-process.png)
+
+Only the fields from the netflow records that are relevant for the goal are converted and ingested into clickhouse. These are listed below, with their data type in the clickhouse database:
+
+|*name*| *description*                                                                                     | *data type* |
+|------|---------------------------------------------------------------------------------------------------|-------------|
+|ts   | Start time of the flow                                                                            | DateTime    |
+|te     | End time of the flow                                                                              | DateTime    |
+|sa     | Source IP address                                                                                 | String      |
+|da     | Destination IP address                                                                            | String      |
+|sp     | Source port                                                                                       | UInt16      |
+|dp     | Destination port                                                                                  | UInt16      |
+|pr     | Protocol (e.g. 'TCP' or 'UDP')                                                                    | String      |
+|flg    | Flags (if pr is 'TCP')                                                                            | String      |
+|ipkt   | Number of packets in this flow                                                                    | UInt64      |
+|ibyt   | Number of bytes in this flow                                                                      | UInt64      |
+|ra     | IP address of the router/network device that exported this flow information                       | String      |
+|flowsrc| Additional label added by nfdump2clickhouse. <br/>Can be set in the config file per flow exporter | String      |
 
 Please be aware that this means that flows are 'one-sided', so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around.
 
@@ -38,7 +60,7 @@ In practice this is not a problem, since the purpose is to identify timeframes w
 
 ### Caveats
 Only works on linux. Tested on debian and ubuntu.
-The way it is setup now means that the nfdump/nfsen toolset and netflow data need to be on the same machine as nfdump2clickhouse. In practice this need not be a problem if your netflow machine is already big and beefy enough. If it needs to be on a separate machine, you can use a tool such as [samplicator](https://github.com/sleinen/samplicator) to duplicate/reflect netflow stream to multiple destinations, one to you normal setup and one to the new machine specifically for this purpose. Of course then the netflow data needs to be processed on the new machine as well, but without the need to store the historical netflow data.
+The way it is setup now means that the nfdump/nfsen toolset and netflow data need to be on the same machine as nfdump2clickhouse. In practice this need not be a problem if your netflow machine is already big and beefy enough. If it needs to be on a separate machine, you can use a tool such as [samplicator](https://github.com/sleinen/samplicator) to duplicate/reflect netflow stream(s) to multiple destinations, one to your normal setup and one to the new machine specifically for this purpose. Of course then the netflow data needs to be processed by nfdump on the new machine as well, but without the need to store the historical netflow data.
 
 # Setting up
 
