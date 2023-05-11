@@ -52,15 +52,26 @@ Only the fields from the netflow records that are relevant for the goal are conv
 |ra     | IP address of the router/network device that exported this flow information                       | String      |
 |flowsrc| Additional label added by nfdump2clickhouse. <br/>Can be set in the config file per flow exporter | String      |
 
-Please be aware that this means that flows are 'one-sided', so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around.
+Please be aware that since the conversion takes place directly from the nfcapd files stored (before any aggregation and.or filtering), this means that flows are 'one-sided'; so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around. This is also why the *opkt* and *obyt* fields from netflow records aren't stored, since they will always be zero because of this.
 
 In practice this is not a problem, since the purpose is to identify timeframes where communication with a malicious host has taken place. So if you know that some external IP address was abused as a C2 server in a specific timeframe (say last month), you can simply search for all source IP addresses of flows that have that IP address as a destination within the last month.    
 
+### Storage requirements
 
+To get a rough estimate of the amount of space you need to reserve, the rule of thumb is that 100 million flows take roughly 2GB of disk space (50 million flows/GB).
+
+As an example: if your network produces 2 billion (2000 million) flows per day on average, and you want to store 90 days worth of flows, that would work out as (2000/100) x 2 x 90 = 3600GB (roughly 3.5TB, assume 4TB to be on the safe side)
 
 ### Caveats
-Only works on linux. Tested on debian and ubuntu.
-The way it is setup now means that the nfdump/nfsen toolset and netflow data need to be on the same machine as nfdump2clickhouse. In practice this need not be a problem if your netflow machine is already big and beefy enough. If it needs to be on a separate machine, you can use a tool such as [samplicator](https://github.com/sleinen/samplicator) to duplicate/reflect netflow stream(s) to multiple destinations, one to your normal setup and one to the new machine specifically for this purpose. Of course then the netflow data needs to be processed by nfdump on the new machine as well, but without the need to store the historical netflow data.
+Only works on linux. 
+
+Tested on debian and ubuntu.
+
+The way it is setup now means that the nfdump/nfsen toolset and netflow data need to be on the same machine as nfdump2clickhouse. In practice this need not be a problem if your netflow machine is already big and beefy enough. 
+
+If it needs to be on a separate machine, you can most likely change the invocation of 'clickhouse-client' to connect to a clickhouse database on another server. 
+
+Alternatively you can use a tool such as [samplicator](https://github.com/sleinen/samplicator) to duplicate/reflect netflow stream(s) to multiple destinations, one to your normal setup and one to the new machine specifically for this purpose. Of course then the netflow data needs to be processed by nfdump on the new machine as well, but without the need to store the historical netflow data.
 
 # Setting up
 
