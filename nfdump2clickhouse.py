@@ -4,6 +4,7 @@ import sys
 import time
 import pprint
 import logging
+from logging import handlers
 import argparse
 import configparser
 import textwrap
@@ -139,7 +140,7 @@ def get_logger(logfile=None, debug=False):
     console_handler.setFormatter(console_formatter)
 
     if logfile:
-        file_handler = logging.FileHandler(filename=logfile)
+        file_handler = logging.handlers.RotatingFileHandler(filename=logfile, backupCount=2, maxBytes=10**7)
         file_formatter = logging.Formatter('%(asctime)s  %(levelname)-5s %(filename)-10s %(lineno)d %(funcName)-20s %(message)s')
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
