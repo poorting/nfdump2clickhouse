@@ -4,10 +4,17 @@
 #logfile=/var/log/nfdump2clickhouse.log
 
 # Default db.table to insert it into clickhouse
-# ch_table=nfsen.flows
+# Note you can specify different tables per watchdir!
+# All created automatically
+ch_table=nfsen.flows
+
+# TTL in days, older flows are automatically removed
+# Defaults to 90 if unspecified
+#ch_ttl=45
 
 #[router1]
 #watchdir=watch
 #
 #[router2]
 #watchdir=/nfsen/partition-data/live/router2
+#ch_table=nfsen_alt.flows2

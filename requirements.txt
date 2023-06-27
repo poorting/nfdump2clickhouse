@@ -1,2 +1,3 @@
 pyarrow
 watchdog
+clickhouse-driver

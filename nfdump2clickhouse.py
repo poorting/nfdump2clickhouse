@@ -22,7 +22,7 @@ from watchdog.events import RegexMatchingEventHandler
 from watchdog.events import FileModifiedEvent
 from multiprocessing.pool import Pool
 
-# from nfdump2parquet import convert
+import clickhouse_driver
 
 program_name = os.path.basename(__file__)
 VERSION = 0.1
@@ -394,11 +394,13 @@ def main():
             try:
                 watchdir = config[section]['watchdir']
                 ch_table = config[section]['ch_table']
+                ch_ttl = config[section].get('ch_ttl', 90)
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
                                     'ch_table': ch_table,
-                                    'flowsrc': section})
+                                    'flowsrc': section,
+                                    'ch_ttl': ch_ttl})
                 else:
                     logger.error(f'watchdir in section [{section}] of {args.c} does not exist or is not a directory')
 
@@ -411,10 +413,41 @@ def main():
         logger.error("No directories to watch, exiting.")
         exit(1)
 
+    # Create database and table if they do not already exist
+    client = clickhouse_driver.Client(host='localhost',  settings={'use_numpy': False})
+
     pool = Pool(len(watches), init_worker)
     observer = Observer()
 
     for watch in watches:
+
+        db_create = f"CREATE DATABASE IF NOT EXISTS {watch['ch_table'].split('.')[0]}"
+        client.execute(db_create)
+
+        tbl_create = f"""
+            CREATE TABLE IF NOT EXISTS {watch['ch_table']}
+            (
+                `ts` DateTime DEFAULT 0,
+                `te` DateTime DEFAULT 0,
+                `sa` String,
+                `da` String,
+                `sp` UInt16 DEFAULT 0,
+                `dp` UInt16 DEFAULT 0,
+                `pr` Nullable(String),
+                `flg` String,
+                `ipkt` UInt64,
+                `ibyt` UInt64,
+                `ra` String,
+                `flowsrc` String
+            )
+            ENGINE = MergeTree
+            PARTITION BY tuple()
+            PRIMARY KEY (ts, te)
+            ORDER BY (ts, te, sa, da)
+            TTL te + toIntervalDay({watch['ch_ttl']})
+        """
+        client.execute(tbl_create)
+
         event_handler = Handler(pool, ch_table= watch['ch_table'], flowsrc=watch['flowsrc'])
         observer.schedule(event_handler, watch['watchdir'], recursive=True)
         logger.info(f"Starting watch on {watch['watchdir']}, with flowsr='{watch['flowsrc']}'")
