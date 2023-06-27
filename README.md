@@ -52,7 +52,7 @@ Only the fields from the netflow records that are relevant for the goal are conv
 |ra     | IP address of the router/network device that exported this flow information                       | String      |
 |flowsrc| Additional label added by nfdump2clickhouse. <br/>Can be set in the config file per flow exporter | String      |
 
-Please be aware that since the conversion takes place directly from the nfcapd files stored (before any aggregation and.or filtering), this means that flows are 'one-sided'; so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around. This is also why the *opkt* and *obyt* fields from netflow records aren't stored, since they will always be zero because of this.
+Please be aware that since the conversion takes place directly from the nfcapd files stored (before any aggregation and/or filtering), this means that flows are 'one-sided'; so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around. This is also why the *opkt* and *obyt* fields from netflow records aren't stored, since they will always be zero because of this.
 
 In practice this is not a problem, since the purpose is to identify timeframes where communication with a malicious host has taken place. So if you know that some external IP address was abused as a C2 server in a specific timeframe (say last month), you can simply search for all source IP addresses of flows that have that IP address as a destination within the last month.    
 
@@ -92,36 +92,27 @@ If you have the server (container) running, the client can be started with ``cli
 
 
 #### Creating the database and table
-Startup the clickhouse client with ``clickhouse-client``, it should connect to the clickhouse database automatically.
+You need to specify the database and table to use in the nfdump2clickhouse.conf file, see the .default example provided. e.g.:
 
-Enter the following commands to create the nfsen database and the flows table:
 ```
-CREATE DATABASE nfsen
+[DEFAULT]
+# By default watch.py logs to console.
+# Specify a log file to log to file instead
+logfile=/var/log/nfdump2clickhouse.log
 
-CREATE TABLE nfsen.flows
-(
-    `ts` DateTime DEFAULT 0,
-    `te` DateTime DEFAULT 0,
-    `sa` String,
-    `da` String,
-    `sp` UInt16 DEFAULT 0,
-    `dp` UInt16 DEFAULT 0,
-    `pr` Nullable(String),
-    `flg` String,
-    `ipkt` UInt64,
-    `ibyt` UInt64,
-    `ra` String,
-    `flowsrc` String
-)
-ENGINE = MergeTree
-PARTITION BY tuple()
-PRIMARY KEY (ts, te)
-ORDER BY (ts, te, sa, da)
-TTL te + toIntervalDay(90)
+# Default db.table to insert it into clickhouse
+# Note you can specify different tables per watchdir!
+# All created automatically
+ch_table=nfsen.flows
+
+# TTL in days, older flows are automatically removed
+# Defaults to 90 if unspecified
+#ch_ttl=45
+
+[router1]
+watchdir=watch
 ```
-These commands are also in the schema.txt file.
-
-If you want to store flows for a different amount of days than 90, adjust the final line accordingly.
+The name of the config section is used as the 'flowsrc' value for every flow ingested into the database from that watch. So in the above example, all flows coming from the ``watch`` directory will have a flowsrc value of 'router1'.
 
 ## nfdump2clickhouse
 
