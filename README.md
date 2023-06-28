@@ -93,6 +93,7 @@ If you have the server (container) running, the client can be started with ``cli
 
 
 #### Creating the database and table
+Is done automatically by nfdump2clickhouse itself.
 
 ## nfdump2clickhouse
 
