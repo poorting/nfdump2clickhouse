@@ -179,6 +179,15 @@ def parser_add_arguments():
                         action="store",
                         )
 
+    parser.add_argument("-d",
+                        metavar="database.table",
+                        help=textwrap.dedent('''\
+                        Database and table to use, specified as <db>.<table>.
+                        Default is test.testflows if not specified
+                        '''),
+                        action="store",
+                        )
+
     parser.add_argument("-f",
                         metavar='flowsrc',
                         help=textwrap.dedent('''\
@@ -373,13 +382,19 @@ def main():
     if args.f:
         flowsrc = args.f
 
+    db_tbl='test.testflows'
+    if args.d:
+        db_tbl = args.d
+
     if args.b and not os.path.isdir(args.b):
         logger.error(f"Directory to watch ({args.b}) not found or not a directory")
         exit(2)
 
     if args.b:
-        watches.append({'watchdir':args.b,
-                        'flowsrc': flowsrc})
+        watches.append({'watchdir': args.b,
+                        'flowsrc': flowsrc,
+                        'ch_table': db_tbl,
+                        'ch_ttl': 90})
 
     # See if we have a config file
     if args.c and os.path.isfile(args.c):
@@ -434,11 +449,11 @@ def main():
                 `sp` UInt16 DEFAULT 0,
                 `dp` UInt16 DEFAULT 0,
                 `pr` Nullable(String),
-                `flg` String,
+                `flg` LowCardinality(String),
                 `ipkt` UInt64,
                 `ibyt` UInt64,
-                `ra` String,
-                `flowsrc` String
+                `ra` LowCardinality(String),
+                `flowsrc` LowCardinality(String)
             )
             ENGINE = MergeTree
             PARTITION BY tuple()
