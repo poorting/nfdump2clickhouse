@@ -3,19 +3,19 @@
 Tooling to insert [nfcapd](https://github.com/phaag/nfdump) files into a clickhouse database.
 
 ## Introduction
-The [nfdump](https://github.com/phaag/nfdump) / [nfsen](https://github.com/phaag/nfsen) combination is widely used to collect, analyze and visualize network traffic. 
+The [nfdump](https://github.com/phaag/nfdump) / [nfsen](https://github.com/phaag/nfsen) combination is widely used to collect (nfdump), analyze (nfdump) and visualize (nfsen) network traffic. 
 Once setup properly it really helps network and/or security teams in their daily work. 
-It provides a nice graphical view on network data and allows you to drill down in the data for analysis.
+Nfsen provides a nice graphical view on network data and allows you to drill down in the data for analysis.
 
 One drawback - at least if used for security analysis - is that it is very slow if you want to analyze historical data over longer periods of time. 
 For example: if it turns out at some point that a specific IP address is connected to an 'evil actor', you would like to find out if there has been contact with that IP address over the past X days, weeks or even months. 
 
 But analyzing historical data in those cases with a specific nfdump filter/profile is painfully slow, even with the newer (multi-threaded) version of the toolset. 
-This is **not** because of a design flaw in nfdump, but simply because nfdump/nfsen was never designed with that specific use case in mind. The way it works is by aggregating and filtering data as it comes in and storing the results of those, ready for you to view and analyze.  
+This is **not** because of a design flaw in nfdump, but simply because nfdump/nfsen combo was never designed with that specific use case in mind. The way it works is by aggregating and filtering data as it comes in and storing the results of those, ready for you to view and analyze.  
 
-But if you *know* where to look (or better: *when*), then you can use nfsen to home in on that specific timeslice and use nfsen again to visualize/analyze further. Even if you then do need further filtering to drill down, that filtering will be much quicker because the window of data is already much much smaller!
+But if you *know* where to look (or better: *when*), then you can use nfdump to home in on that specific timeslice and use nfsen again to visualize/analyze further. Even if you then do need further filtering to drill down, the filtering will be that much quicker because the 'window' (amount of data to process) is already much much smaller!
 
-The question then quickly becomes: is there a better way to hunt down appearances of specific IP address(es) in netflow data so that we can 'target' those time windows with nfdump/nfsen? 
+The question then quickly becomes: is there a better way to hunt down appearances of specific IP address(es) in netflow data so that we can 'target' those time windows with nfdump? 
 
 This of course is analogous to finding a needle in a haystack; which is exactly what an analytical database is designed to do: processing large volumes of data either for analysis or for finding specific occurrences. 
 In order to do that you need to have the relevant data in an analytical database to start with, which is where nfdump2clickhouse comes in!
@@ -67,17 +67,17 @@ Only works on linux.
 
 Tested on debian and ubuntu.
 
-The way it is setup now means that the nfdump/nfsen toolset and netflow data need to be on the same machine as nfdump2clickhouse. In practice this need not be a problem if your netflow machine is already big and beefy enough. 
+The way it is setup now means that the nfdump toolset and netflow data need to be on the same machine as nfdump2clickhouse. In practice this need not be a problem if your netflow machine is already big and beefy enough. 
 
 If it needs to be on a separate machine, you can most likely change the invocation of 'clickhouse-client' to connect to a clickhouse database on another server. 
 
-Alternatively you can use a tool such as [samplicator](https://github.com/sleinen/samplicator) to duplicate/reflect netflow stream(s) to multiple destinations, one to your normal setup and one to the new machine specifically for this purpose. Of course then the netflow data needs to be processed by nfdump on the new machine as well, but without the need to store the historical netflow data.
+Alternatively you can use a tool such as [samplicator](https://github.com/sleinen/samplicator) to duplicate/reflect netflow stream(s) to multiple destinations, one to your normal setup and one to the new machine specifically for this purpose. Of course then the netflow data needs to be processed by nfdump on the new machine as well, but without the need to store/keep the historical netflow data.
 
 # Setting up
 
 ## Requirements
 
-nfsen toolchain installed
+nfdump toolchain installed
 
 ### Clickhouse
 #### Server
@@ -110,12 +110,13 @@ sudo apt install python3-venv
 ```
 *Then follow the steps for creating the virtual environment again*
 
+### Testing
+
 Activate the virtual environment by running:
 ```commandline
 source /venv/bin/activate
 ```
 
-### Testing
 Executing nfdump2clickhouse.py without arguments gives the list of options
 ```c
 ./nfdump2clickhouse.py 
