@@ -37,20 +37,25 @@ The image below (adapted from a [paper describing the principe of operation of n
 
 Only the fields from the netflow records that are relevant for the goal are converted and ingested into clickhouse. These are listed below, with their data type in the clickhouse database:
 
-|*name*| *description*                                                                                     | *data type* |
-|------|---------------------------------------------------------------------------------------------------|-------------|
-|ts   | Start time of the flow                                                                            | DateTime    |
-|te     | End time of the flow                                                                              | DateTime    |
-|sa     | Source IP address                                                                                 | String      |
-|da     | Destination IP address                                                                            | String      |
-|sp     | Source port                                                                                       | UInt16      |
-|dp     | Destination port                                                                                  | UInt16      |
-|pr     | Protocol (e.g. 'TCP' or 'UDP')                                                                    | String      |
-|flg    | Flags (if pr is 'TCP')                                                                            | String      |
-|ipkt   | Number of packets in this flow                                                                    | UInt64      |
-|ibyt   | Number of bytes in this flow                                                                      | UInt64      |
-|ra     | IP address of the router/network device that exported this flow information                       | String      |
-|flowsrc| Additional label added by nfdump2clickhouse. <br/>Can be set in the config file per flow exporter | String      |
+| *name*  | *description*                                                                                     | *data type* |
+|---------|---------------------------------------------------------------------------------------------------|-------------|
+| ts      | Start time of the flow                                                                            | DateTime    |
+| te      | End time of the flow                                                                              | DateTime    |
+| sa      | Source IP address                                                                                 | String      |
+| da      | Destination IP address                                                                            | String      |
+| sp      | Source port                                                                                       | UInt16      |
+| dp      | Destination port                                                                                  | UInt16      |
+| pr      | Protocol (e.g. 'TCP' or 'UDP')                                                                    | String      |
+| flg     | Flags (if pr is 'TCP')                                                                            | String      |
+| ipkt    | Number of packets in this flow                                                                    | UInt64      |
+| ibyt    | Number of bytes in this flow                                                                      | UInt64      |
+| smk     | Source mask                                                                                       | UInt8       |
+| dmk     | Destination mask                                                                                  | UInt8       |
+| ra      | IP address of the router/network device that exported this flow information                       | String      |
+| in      | Input interface number                                                                            | UInt16      |
+| out     | Output interface number                                                                           | UInt16      |
+| exid    | Exporter id                                                                                       | UInt16      |
+| flowsrc | Additional label added by nfdump2clickhouse. <br/>Can be set in the config file per flow exporter | String      |
 
 Please be aware that since the conversion takes place directly from the nfcapd files stored (before any aggregation and/or filtering), this means that flows are 'one-sided'; so a connection between a webbrowser X and a webserver Y will show up as two flows: one with IP address and port of X as a source and those of Y as a destination, and one flow that covers the other way around. This is also why the *opkt* and *obyt* fields from netflow records aren't stored, since they will always be zero because of this.
 
@@ -196,3 +201,20 @@ sudo ./install.sh
 This will create the virtual environment if needed, and install and start the service.
 You can ensure the service is running by checking the log file specified in the config file.
 
+## Example queries
+
+If you are familiar with SQL you should have no trouble querying the database for relevant data, for help and clickhouse SQL specifics you can consult their [documentation](https://clickhouse.com/docs/en/sql-reference).
+
+Below are some example queries to get started. These assume you are using the relevant database ('nfsen' by default), which you can select in the clickhouse-client with ``` use nfsen; ```
+
+*Find all flows starting after 2024-01-01 with a destination IP 1.2.3.4 and destination port 100:*
+
+``` select * from flows where ts>'2024-01-01' and da='1.2.3.4' and dp=100;```
+
+*Find all flows starting after 2024-01-01 coming from network 4.3.2.0/24, with destination IP 1.2.3.4 and destination port 100:*
+
+``` select * from flows where ts>'2024-01-01' and isIPAddressInRange(sa, '4.3.2.0/24') and da='1.2.3.4' and dp=100;```
+
+*Find all flows starting after 2024-01-01 with a destination IP either 1.2.3.4 or 10.11.12.13 and destination port 100:*
+
+``` select * from flows where ts>'2024-01-01' and da in ('1.2.3.4', '10.11.12.13') and dp=100;```
