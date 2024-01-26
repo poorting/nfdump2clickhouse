@@ -253,7 +253,7 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
     # The default fields that should be carried over to the parquet file
     # exid == exporter id
     parquet_fields = ['ts', 'te', 'sa', 'da', 'sp', 'dp', 'pr', 'flg',
-                      'ipkt', 'ibyt', 'ra']
+                      'ipkt', 'ibyt', 'smk', 'dmk', 'ra', 'in', 'out', 'exid']
 
     info_return = {
         'src': src_file,
@@ -452,7 +452,12 @@ def main():
                 `flg` LowCardinality(String),
                 `ipkt` UInt64,
                 `ibyt` UInt64,
+                `smk` UInt8,
+                `dmk` UInt8,
                 `ra` LowCardinality(String),
+                `in` UInt16 DEFAULT 0,
+                `out` UInt16 DEFAULT 0,
+                `exid` UInt16 DEFAULT 0,
                 `flowsrc` LowCardinality(String)
             )
             ENGINE = MergeTree
