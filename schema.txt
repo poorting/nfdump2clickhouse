@@ -12,7 +12,12 @@ CREATE TABLE nfsen.flows
     `flg` String,
     `ipkt` UInt64,
     `ibyt` UInt64,
-    `ra` String,
+    `smk` UInt8,
+    `dmk` UInt8,
+    `ra` LowCardinality(String),
+    `in` UInt16 DEFAULT 0,
+    `out` UInt16 DEFAULT 0,
+    `exid` UInt16 DEFAULT 0,
     `flowsrc` String
 )
 ENGINE = MergeTree
