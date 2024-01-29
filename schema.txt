@@ -17,6 +17,8 @@ CREATE TABLE nfsen.flows
     `ra` LowCardinality(String),
     `in` UInt16 DEFAULT 0,
     `out` UInt16 DEFAULT 0,
+    `sas` UInt32 DEFAULT 0,
+    `das` UInt32 DEFAULT 0,
     `exid` UInt16 DEFAULT 0,
     `flowsrc` String
 )

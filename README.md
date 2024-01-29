@@ -54,6 +54,8 @@ Only the fields from the netflow records that are relevant for the goal are conv
 | ra      | IP address of the router/network device that exported this flow information                       | String      |
 | in      | Input interface number                                                                            | UInt16      |
 | out     | Output interface number                                                                           | UInt16      |
+| sas     | Source AS number                                                                                  | UInt16      |
+| das     | Destination AS number                                                                             | UInt16      |
 | exid    | Exporter id                                                                                       | UInt16      |
 | flowsrc | Additional label added by nfdump2clickhouse. <br/>Can be set in the config file per flow exporter | String      |
 
