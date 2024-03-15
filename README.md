@@ -65,9 +65,9 @@ In practice this is not a problem, since the purpose is to identify timeframes w
 
 ### Storage requirements
 
-To get a rough estimate of the amount of space you need to reserve, the rule of thumb is that 100 million flows take roughly 2GB of disk space (50 million flows/GB).
+To get a rough estimate of the amount of space you need to reserve, the rule of thumb is that 1 billion flows take roughly 25GB of disk space (40 million flows/GB).
 
-As an example: if your network produces 2 billion (2000 million) flows per day on average, and you want to store 90 days worth of flows, that would work out as (2000/100) x 2 x 90 = 3600GB (roughly 3.5TB, assume 4TB to be on the safe side)
+As an example: if your network produces 2 billion (2000 million) flows per day on average, and you want to store 90 days worth of flows, that would work out as (2000/40) x 90 = 4500GB (roughly 4.5TB, assume 5TB to be on the safe side)
 
 ### Caveats
 Only works on linux. 
@@ -89,11 +89,13 @@ nfdump toolchain installed
 ### Clickhouse
 #### Server
 
-The quickest, easiest and preferred way - if you have docker installed - is to spin up a clickhouse docker container by issuing a ``docker compose up -d`` command in this directory. The resulting clickhouse instance will have no password set, but it is only reachable from the localhost. It will also be automatically restarted after reboot.
+The quickest, easiest and preferred way - if you have [docker engine installed from the docker repositories](https://docs.docker.com/engine/install/debian/) - is to spin up a clickhouse docker container by issuing a ``docker compose up -d`` command in this directory. The resulting clickhouse instance will have no password set, but it is only reachable from the localhost. It will also be automatically restarted after reboot.
 
 If you really do want to install clickhouse directly on your machine, you can follow the [setup instructions](https://clickhouse.com/docs/en/install/#self-managed-install) at [clickhouse.com](https://clickhouse.com/) to setup a clickhouse server. Note that nfdump2clickhouse assumes that the default user can be used without password, so ensure this is the case **and** that clickhouse can only be reached from localhost!
 
 #### Client
+**!!!Do NOT install clickhouse-client from your distros' repositories. That verion is *too old* to work!!!**
+
 Follow the [instructions](https://clickhouse.com/docs/en/install/#available-installation-options) to install from DEB or RPM packages, but only install the client package (e.g. ``sudo apt-get install -y clickhouse-client``).
 
 If you have the server (container) running, the client can be started with ``clickhouse-client`` and should connect to the clickhouse server automatically. 
