@@ -385,7 +385,7 @@ def main():
 
     watches = list()
 
-    workers = args.j
+    workers = int(args.j)
 
     if args.l:
         logfile = args.l
@@ -422,7 +422,7 @@ def main():
                 watchdir = config[section]['watchdir']
                 ch_table = config[section]['ch_table']
                 ch_ttl = config[section].get('ch_ttl', 90)
-                workers = config[section].get('workers', 1)
+                workers = int(config[section].get('workers', 1))
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
