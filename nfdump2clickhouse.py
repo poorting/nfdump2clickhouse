@@ -52,7 +52,7 @@ class Handler(RegexMatchingEventHandler):
         logger.error(f"Error: {error}")
 
     def __convert(self, source_file):
-        logger.info(f"Converting {source_file}")
+        logger.info(f"Submitting {source_file} for conversion")
         self.pool.apply_async(convert, args=(source_file, self.ch_table, self.flowsrc),
                               callback=self.completed_callback,
                               error_callback=self.error_callback)
