@@ -14,6 +14,10 @@ ch_table=nfsen.flows
 
 #[router1]
 #watchdir=watch
+# Normally one process per watch should be sufficient.
+# If conversion takes longer than rotation time (normally 5 minutes)
+# then you can specify the numbers of workers for this watch explicitly
+#workers=2
 #
 #[router2]
 #watchdir=/nfsen/partition-data/live/router2

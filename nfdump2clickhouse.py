@@ -188,6 +188,16 @@ def parser_add_arguments():
                         action="store",
                         )
 
+    parser.add_argument("-j",
+                        metavar="# of workers",
+                        help=textwrap.dedent('''\
+                        Number of workers (processes) to start for conversion.
+                        Defaults to 1 if not specified.
+                        '''),
+                        action="store",
+                        default=1,
+                        )
+
     parser.add_argument("-f",
                         metavar='flowsrc',
                         help=textwrap.dedent('''\
@@ -375,6 +385,8 @@ def main():
 
     watches = list()
 
+    workers = args.j
+
     if args.l:
         logfile = args.l
 
@@ -410,17 +422,22 @@ def main():
                 watchdir = config[section]['watchdir']
                 ch_table = config[section]['ch_table']
                 ch_ttl = config[section].get('ch_ttl', 90)
+                workers = config[section].get('workers', 1)
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
                                     'ch_table': ch_table,
                                     'flowsrc': section,
-                                    'ch_ttl': ch_ttl})
+                                    'ch_ttl': ch_ttl,
+                                    'workers': workers})
                 else:
                     logger.error(f'watchdir in section [{section}] of {args.c} does not exist or is not a directory')
 
             except KeyError:
                 logger.error(f'watchdir missing in section [{section}] of {args.c}')
+        workers = 0
+        for watch in watches:
+            workers += watch['workers']
 
     logger = get_logger(logfile=logfile, debug=args.debug)
 
@@ -431,7 +448,9 @@ def main():
     # Create database and table if they do not already exist
     client = clickhouse_driver.Client(host='localhost',  settings={'use_numpy': False})
 
-    pool = Pool(len(watches), init_worker)
+    logger.info(f"Starting {workers} workers for conversion")
+
+    pool = Pool(workers, init_worker)
     observer = Observer()
 
     for watch in watches:
