@@ -32,7 +32,7 @@ VERSION = 0.1
 logger = logging.getLogger(program_name)
 
 sig_received = False
-import_nr = 0
+import_nr = 1
 
 ###############################################################################
 # class Handler(PatternMatchingEventHandler):
@@ -552,7 +552,10 @@ def main():
         if observer:
             observer.stop()
             observer.join()
-        pool.close()
+            if import_nr == 1:
+                pool.close()
+            else:
+                pool.terminate()
         pool.join()
 
 
