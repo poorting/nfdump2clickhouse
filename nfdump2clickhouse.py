@@ -554,9 +554,9 @@ def main():
             observer.join()
             if import_nr == 1:
                 pool.close()
+                pool.join()
             else:
                 pool.terminate()
-        pool.join()
 
 
 ###############################################################################
