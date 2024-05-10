@@ -407,6 +407,7 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
 ###############################################################################
 def main():
 
+    global sig_received
     def signal_handler(signum, frame):
         global sig_received
         sig_received = True
@@ -523,15 +524,29 @@ def main():
             else:
                 logger.info("completed_callback(None)")
             import_nr -= 1
-            logger.info(f"{import_nr} left to ingest")
+            logger.info(f"{len(import_files)} left to ingest")
+            if (not sig_received) and len(import_files)>0:
+                imp = import_files.pop()
+                pool.apply_async(convert, args=(imp, db_tbl, flowsrc),
+                                  callback=completed_callback,
+                                  error_callback=error_callback)
+
         def error_callback(error):
             global import_nr
             logger.error(f"Error: {error}")
 
-        for f in import_files:
+        init_sub_nr = workers if workers<len(import_files) else len(import_files)
+        for i in range(0, init_sub_nr):
+            f = import_files.pop()
             pool.apply_async(convert, args=(f, db_tbl, flowsrc),
                               callback=completed_callback,
                               error_callback=error_callback)
+        try:
+            while (not sig_received) and len(import_files)>0:
+                time.sleep(1)
+        finally:
+            pool.close()
+            pool.join()
 
     else:
         # setting up watches
@@ -543,20 +558,14 @@ def main():
             logger.info(f"Starting watch on {watch['watchdir']}, with flowsr='{watch['flowsrc']}'")
 
         observer.start()
-
-    # wait till all imports processed or Ctrl+C or SIGTERM received
-    try:
-        while (not sig_received) and import_nr>0:
-            time.sleep(1)
-    finally:
-        if observer:
+        try:
+            while not sig_received:
+                time.sleep(1)
+        finally:
             observer.stop()
             observer.join()
-            if import_nr == 1:
-                pool.close()
-                pool.join()
-            else:
-                pool.terminate()
+            pool.close()
+            pool.join()
 
 
 ###############################################################################
