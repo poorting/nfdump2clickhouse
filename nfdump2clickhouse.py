@@ -525,12 +525,14 @@ def main():
                 logger.info("completed_callback(None)")
             import_nr -= 1
             logger.info(f"{len(import_files)} left to ingest")
-            if (not sig_received) and len(import_files)>0:
-                imp = import_files.pop()
-                pool.apply_async(convert, args=(imp, db_tbl, flowsrc),
-                                  callback=completed_callback,
-                                  error_callback=error_callback)
-
+            if not sig_received:
+                if len(import_files)>0:
+                    imp = import_files.pop()
+                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc),
+                                      callback=completed_callback,
+                                      error_callback=error_callback)
+            else:
+                logger.info("Signal received, not submitting new files for ingest")
         def error_callback(error):
             global import_nr
             logger.error(f"Error: {error}")
