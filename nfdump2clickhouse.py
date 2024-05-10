@@ -39,7 +39,7 @@ import_nr = 1
 class Handler(RegexMatchingEventHandler):
 
     def __init__(self, pool, ch_table='nfsen.flows', flowsrc=''):
-        super().__init__(regexes=['.*/nfcapd.\d{12}'],
+        super().__init__(regexes=[r'.*/nfcapd.\d{12}'],
                          ignore_directories=True)
         # super().__init__(regexes=['.*'],
         #                  ignore_directories=True)
@@ -509,7 +509,7 @@ def main():
         logger.info(f"Specified files to import into '{db_tbl}' with flowsrc='{flowsrc}':")
         create_db_and_table(client, db_tbl)
         # '.*/nfcapd.\d{12}'
-        import_files = [str(f) for f in args.imports if re.fullmatch('.*/nfcapd.\d{12}', str(f))]
+        import_files = [str(f) for f in args.imports if re.fullmatch(r'.*/nfcapd.\d{12}', str(f))]
         import_nr = len(import_files)
         logger.info(import_files)
         logger.info(f"{import_nr} files to import")
