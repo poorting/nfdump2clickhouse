@@ -32,7 +32,6 @@ VERSION = 0.1
 logger = logging.getLogger(program_name)
 
 sig_received = False
-import_nr = 1
 
 ###############################################################################
 # class Handler(PatternMatchingEventHandler):
@@ -503,19 +502,16 @@ def main():
 
     pool = Pool(workers, init_worker)
 
-    observer = None
     if args.imports:
-        global import_nr
+        # imports specified on the command line
         logger.info(f"Specified files to import into '{db_tbl}' with flowsrc='{flowsrc}':")
         create_db_and_table(client, db_tbl)
         # '.*/nfcapd.\d{12}'
         import_files = [str(f) for f in args.imports if re.fullmatch(r'.*/nfcapd.\d{12}', str(f))]
-        import_nr = len(import_files)
         logger.info(import_files)
-        logger.info(f"{import_nr} files to import")
+        logger.info(f"{len(import_files)} files to import")
 
         def completed_callback(result):
-            global import_nr
             if result:
                 logger.info(
                     f"Completed: {result['src']} in {result['toCSV'] + result['toParquet'] + result['toCH']:.2f} seconds")
@@ -523,7 +519,7 @@ def main():
                     f"\t to CSV: {result['toCSV']:.2f}s, to Parquet: {result['toParquet']:.2f}s, CH ingest: {result['toCH']:.2f}s")
             else:
                 logger.info("completed_callback(None)")
-            import_nr -= 1
+
             logger.info(f"{len(import_files)} left to ingest")
             if not sig_received:
                 if len(import_files)>0:
@@ -533,8 +529,8 @@ def main():
                                       error_callback=error_callback)
             else:
                 logger.info("Signal received, not submitting new files for ingest")
+
         def error_callback(error):
-            global import_nr
             logger.error(f"Error: {error}")
 
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
@@ -544,14 +540,14 @@ def main():
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
-            while (not sig_received) and len(import_files)>0:
+            while (not sig_received) and len(import_files) > 0:
                 time.sleep(1)
         finally:
             pool.close()
             pool.join()
 
     else:
-        # setting up watches
+        # no imports specified on the command line, so setting up watches
         observer = Observer()
         for watch in watches:
             create_db_and_table(client, watch['ch_table'], watch['ch_ttl'])
