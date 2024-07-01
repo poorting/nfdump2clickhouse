@@ -304,7 +304,8 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
                  'osmc', 'mpls1', 'mpls2', 'mpls3', 'mpls4', 'mpls5',
                  'mpls6', 'mpls7', 'mpls8', 'mpls9', 'mpls10', 'cl',
                  'sl', 'al', 'ra', 'eng', 'exid', 'tr']
-
+    fmt_str = "csv:%ts,%te,%sa,%da,%sp,%dp,%pr,%flg,%ipkt,%ibyt,%smk,%dmk,%ra,%in,%out,%sas,%das,%exid"
+    fmt_str = "csv:%ts,%te,%sa,%da,%sp,%dp,%pr,%flg,%ipkt,%ibyt,%smk,%dmk,%ra,%in,%out,%sas,%das,%exp"
     # The default fields that should be carried over to the parquet file
     # exid == exporter id
     parquet_fields = ['ts', 'te', 'sa', 'da', 'sp', 'dp', 'pr', 'flg',
@@ -331,7 +332,8 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
 
     try:
         with open(tmp_filename, 'a', encoding='utf-8') as f:
-            subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f)
+            subprocess.run(['nfdump', '-r', src_file, '-o', fmt_str, '-q'], stdout=f)
+            # subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f)
     except Exception as e:
         logger.error(f'Error reading {src_file} : {e}')
         return
@@ -351,7 +353,8 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
                                       block_size=block_size,
-                                      column_names=nf_fields)
+                                      column_names=parquet_fields)
+                                      # column_names=nf_fields)
                                   ) as reader:
             chunk_nr = 0
             for next_chunk in reader:
@@ -359,10 +362,10 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
                 if next_chunk is None:
                     break
                 table = pa.Table.from_batches([next_chunk])
-                try:
-                    table = table.drop(drop_columns)
-                except KeyError as ke:
-                    logger.error(ke)
+                # try:
+                #     table = table.drop(drop_columns)
+                # except KeyError as ke:
+                #     logger.error(ke)
 
                 table = table.append_column('flowsrc', [[flowsrc] * table.column('te').length()])
 
