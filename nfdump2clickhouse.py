@@ -37,7 +37,7 @@ sig_received = False
 # class Handler(PatternMatchingEventHandler):
 class Handler(RegexMatchingEventHandler):
 
-    def __init__(self, pool, ch_table='nfsen.flows', flowsrc=''):
+    def __init__(self, pool, ch_table='nfsen.flows', flowsrc='', use_fmt=False):
         super().__init__(regexes=[r'.*/nfcapd.\d{12}'],
                          ignore_directories=True)
         # super().__init__(regexes=['.*'],
@@ -45,6 +45,7 @@ class Handler(RegexMatchingEventHandler):
         self.flowsrc = flowsrc
         self.ch_table = ch_table
         self.pool = pool
+        self.use_fmt = use_fmt
 
     def completed_callback(self, result):
         logger.info(f"Completed: {result['src']} in {result['toCSV']+result['toParquet']+result['toCH']:.2f} seconds")
@@ -55,7 +56,7 @@ class Handler(RegexMatchingEventHandler):
 
     def __convert(self, source_file):
         logger.info(f"Submitting {source_file} for conversion")
-        self.pool.apply_async(convert, args=(source_file, self.ch_table, self.flowsrc),
+        self.pool.apply_async(convert, args=(source_file, self.ch_table, self.flowsrc, self.use_fmt),
                               callback=self.completed_callback,
                               error_callback=self.error_callback)
 
@@ -229,6 +230,21 @@ def parser_add_arguments():
                         action="store",
                         )
 
+    parser.add_argument('-i', '--import',
+                        type=Path,
+                        help='nfcapd file(s) to convert and import, globbing supported',
+                        nargs='+', required=False,
+                        dest='imports')
+
+    parser.add_argument('-u',
+                        help=textwrap.dedent('''\
+                        nfdump version newer than 1.7.4 use a different default csv output format
+                        in which case a format string must be used for concersion to csv.
+                        If you get errors along the lines of 'expected 48, got 10', try again
+                        with this argument supplied.
+                        '''),
+                        action="store_true")
+
     parser.add_argument("--debug",
                         help="show debug output",
                         action="store_true")
@@ -238,11 +254,6 @@ def parser_add_arguments():
                         action="version",
                         version='%(prog)s (version {})'.format(VERSION))
 
-    parser.add_argument('-i', '--import',
-                        type=Path,
-                        help='nfcapd file(s) to convert and import, globbing supported',
-                        nargs='+', required=False,
-                        dest='imports')
     return parser
 
 
@@ -291,7 +302,7 @@ def init_worker():
 
 
 # ------------------------------------------------------------------------------
-def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.INFO):
+def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False, loglevel=logging.INFO):
 
     # Max size of chunk to read at a time
     block_size = 2 * 1024 * 1024
@@ -304,7 +315,6 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
                  'osmc', 'mpls1', 'mpls2', 'mpls3', 'mpls4', 'mpls5',
                  'mpls6', 'mpls7', 'mpls8', 'mpls9', 'mpls10', 'cl',
                  'sl', 'al', 'ra', 'eng', 'exid', 'tr']
-    fmt_str = "csv:%ts,%te,%sa,%da,%sp,%dp,%pr,%flg,%ipkt,%ibyt,%smk,%dmk,%ra,%in,%out,%sas,%das,%exid"
     fmt_str = "csv:%ts,%te,%sa,%da,%sp,%dp,%pr,%flg,%ipkt,%ibyt,%smk,%dmk,%ra,%in,%out,%sas,%das,%exp"
     # The default fields that should be carried over to the parquet file
     # exid == exporter id
@@ -332,8 +342,10 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
 
     try:
         with open(tmp_filename, 'a', encoding='utf-8') as f:
-            subprocess.run(['nfdump', '-r', src_file, '-o', fmt_str, '-q'], stdout=f)
-            # subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f)
+            if use_fmt:
+                subprocess.run(['nfdump', '-r', src_file, '-o', fmt_str, '-q'], stdout=f)
+            else:
+                subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f)
     except Exception as e:
         logger.error(f'Error reading {src_file} : {e}')
         return
@@ -350,11 +362,11 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
     pqwriter = None
 
     try:
+
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
                                       block_size=block_size,
-                                      column_names=parquet_fields)
-                                      # column_names=nf_fields)
+                                      column_names=parquet_fields if use_fmt else nf_fields)
                                   ) as reader:
             chunk_nr = 0
             for next_chunk in reader:
@@ -362,10 +374,12 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='', loglevel=logging.
                 if next_chunk is None:
                     break
                 table = pa.Table.from_batches([next_chunk])
-                # try:
-                #     table = table.drop(drop_columns)
-                # except KeyError as ke:
-                #     logger.error(ke)
+
+                if not use_fmt:
+                    try:
+                        table = table.drop(drop_columns)
+                    except KeyError as ke:
+                        logger.error(ke)
 
                 table = table.append_column('flowsrc', [[flowsrc] * table.column('te').length()])
 
@@ -439,7 +453,7 @@ def main():
     if args.l:
         logfile = args.l
 
-    flowsrc=''
+    flowsrc = 'test'
     if args.f:
         flowsrc = args.f
 
@@ -455,7 +469,8 @@ def main():
         watches.append({'watchdir': args.b,
                         'flowsrc': flowsrc,
                         'ch_table': db_tbl,
-                        'ch_ttl': 90})
+                        'ch_ttl': 90,
+                        'use_fmt': args.u})
 
     # See if we have a config file
     if args.c and os.path.isfile(args.c):
@@ -472,13 +487,15 @@ def main():
                 ch_table = config[section]['ch_table']
                 ch_ttl = config[section].get('ch_ttl', 90)
                 workers = int(config[section].get('workers', 1))
+                use_fmt = int(config[section].get('use_fmt', False))
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
                                     'ch_table': ch_table,
                                     'flowsrc': section,
                                     'ch_ttl': ch_ttl,
-                                    'workers': workers})
+                                    'workers': workers,
+                                    'use_fmt': use_fmt})
                 else:
                     logger.error(f'watchdir in section [{section}] of {args.c} does not exist or is not a directory')
 
@@ -539,7 +556,7 @@ def main():
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc),
+            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u),
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
@@ -554,7 +571,10 @@ def main():
         observer = Observer()
         for watch in watches:
             create_db_and_table(client, watch['ch_table'], watch['ch_ttl'])
-            event_handler = Handler(pool, ch_table= watch['ch_table'], flowsrc=watch['flowsrc'])
+            event_handler = Handler(pool,
+                                    ch_table= watch['ch_table'],
+                                    flowsrc=watch['flowsrc'],
+                                    use_fmt=watch['use_fmt'])
             observer.schedule(event_handler, watch['watchdir'], recursive=True)
             logger.info(f"Starting watch on {watch['watchdir']}, with flowsr='{watch['flowsrc']}'")
 

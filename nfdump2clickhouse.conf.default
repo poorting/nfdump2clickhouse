@@ -12,6 +12,9 @@ ch_table=nfsen.flows
 # Defaults to 90 if unspecified
 #ch_ttl=45
 
+# If your nfdump version is newer than 1.7.4
+#use_fmt=True
+
 #[router1]
 #watchdir=watch
 # Normally one process per watch should be sufficient.
