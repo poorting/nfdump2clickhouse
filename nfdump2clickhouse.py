@@ -487,7 +487,7 @@ def main():
                 ch_table = config[section]['ch_table']
                 ch_ttl = config[section].get('ch_ttl', 90)
                 workers = int(config[section].get('workers', 1))
-                use_fmt = int(config[section].get('use_fmt', False))
+                use_fmt = bool(config[section].get('use_fmt', False))
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
