@@ -239,9 +239,10 @@ def parser_add_arguments():
     parser.add_argument('-u',
                         help=textwrap.dedent('''\
                         nfdump version newer than 1.7.4 use a different default csv output format
-                        in which case a format string must be used for concersion to csv.
-                        If you get errors along the lines of 'expected 48, got 10', try again
-                        with this argument supplied.
+                        in which case a format string must be used for conversion to csv.
+                        If you get errors along the lines of:
+                        'ERROR - CSV parse error: Expected 48 columns, got 10'
+                        try again with this argument supplied.
                         '''),
                         action="store_true")
 
