@@ -11,6 +11,14 @@ services:
     volumes:
       - ./data:/var/lib/clickhouse/
       - ./log:/var/log/clickhouse-server/
+    environment:
+      - TZ=UTC
+#    Clickhouse stores datetime in UTC
+#    But displays in the time zone it is set to
+#    By default this is UTC as well, but if you
+#    want to use a different time zone: Simply
+#    set TZ above to a different value, e.g.
+#      - TZ=Europe/Amsterdam
     ulimits:
         nofile:
             soft: 262144
