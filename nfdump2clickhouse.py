@@ -341,12 +341,16 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
     tmp_file, tmp_filename = tempfile.mkstemp()
     os.close(tmp_file)
 
+    # Ensure timestamps stay in UTC rather than converted to local TZ
+    new_env = dict(os.environ)
+    new_env['TZ'] = 'UTC'
+
     try:
         with open(tmp_filename, 'a', encoding='utf-8') as f:
             if use_fmt:
-                subprocess.run(['nfdump', '-r', src_file, '-o', fmt_str, '-q'], stdout=f)
+                subprocess.run(['nfdump', '-r', src_file, '-o', fmt_str, '-q'], stdout=f, env=new_env)
             else:
-                subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f)
+                subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f, env=new_env)
     except Exception as e:
         logger.error(f'Error reading {src_file} : {e}')
         return
