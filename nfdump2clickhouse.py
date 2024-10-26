@@ -28,7 +28,7 @@ from pathlib import Path
 import re
 
 program_name = os.path.basename(__file__)
-VERSION = 0.1
+VERSION = "0.2.1"
 logger = logging.getLogger(program_name)
 
 sig_received = False
@@ -191,6 +191,33 @@ def parser_add_arguments():
                         action="store",
                         )
 
+    parser.add_argument("--host",
+                        metavar="host",
+                        help=textwrap.dedent('''\
+                        Clickhouse hostname.
+                        Default is localhost
+                        '''),
+                        action="store",
+                        )
+
+    parser.add_argument("-u", "--user",
+                        metavar="user",
+                        help=textwrap.dedent('''\
+                        Username for clickhouse-client to use for authenticating to clickhouse.
+                        Default is not to use any username (equal to the 'default' user)
+                        '''),
+                        action="store",
+                        )
+
+    parser.add_argument("-p", "--password",
+                        metavar="password",
+                        help=textwrap.dedent('''\
+                        Password for clickhouse-client to use for authenticating to clickhouse.
+                        Default is not to use any password (the default user is passwordless)
+                        '''),
+                        action="store",
+                        )
+
     parser.add_argument("-j",
                         metavar="# of workers",
                         help=textwrap.dedent('''\
@@ -236,7 +263,7 @@ def parser_add_arguments():
                         nargs='+', required=False,
                         dest='imports')
 
-    parser.add_argument('-u',
+    parser.add_argument('-n',
                         help=textwrap.dedent('''\
                         nfdump version newer than 1.7.4 use a different default csv output format
                         in which case a format string must be used for conversion to csv.
@@ -258,13 +285,68 @@ def parser_add_arguments():
     return parser
 
 
+# # ------------------------------------------------------------------------------
+# def create_db_and_table(client, db_and_table, ttl=90):
+#     db_create = f"CREATE DATABASE IF NOT EXISTS {db_and_table.split('.')[0]}"
+#     client.execute(db_create)
+#
+#     tbl_create = f"""
+#         CREATE TABLE IF NOT EXISTS {db_and_table}
+#         (
+#             `ts` DateTime DEFAULT 0,
+#             `te` DateTime DEFAULT 0,
+#             `sa` String,
+#             `da` String,
+#             `sp` UInt16 DEFAULT 0,
+#             `dp` UInt16 DEFAULT 0,
+#             `pr` Nullable(String),
+#             `flg` LowCardinality(String),
+#             `ipkt` UInt64,
+#             `ibyt` UInt64,
+#             `smk` UInt8,
+#             `dmk` UInt8,
+#             `ra` LowCardinality(String),
+#             `in` UInt16 DEFAULT 0,
+#             `out` UInt16 DEFAULT 0,
+#             `sas` UInt32 DEFAULT 0,
+#             `das` UInt32 DEFAULT 0,
+#             `exid` UInt16 DEFAULT 0,
+#             `flowsrc` LowCardinality(String)
+#         )
+#         ENGINE = MergeTree
+#         PARTITION BY tuple()
+#         PRIMARY KEY (ts, te)
+#         ORDER BY (ts, te, sa, da)
+#         TTL te + toIntervalDay({ttl})
+#     """
+#     client.execute(tbl_create)
+#
+#
 # ------------------------------------------------------------------------------
-def create_db_and_table(client, db_and_table, ttl=90):
-    db_create = f"CREATE DATABASE IF NOT EXISTS {db_and_table.split('.')[0]}"
-    client.execute(db_create)
+def cmd_env_from_config(config):
+    cmd = ['clickhouse-client']
+    if config['ch_host']:
+        cmd.extend(['--host', config['ch_host']])
+    if config['ch_secure']:
+        cmd.extend(['--secure'])
+        if not config['ch_verify']:
+            cmd.extend([' --accept-invalid-certificate'])
 
-    tbl_create = f"""
-        CREATE TABLE IF NOT EXISTS {db_and_table}
+    new_env = dict(os.environ)
+    if config['ch_user']:
+        new_env['CLICKHOUSE_USER'] = config['ch_user']
+    if config['ch_password']:
+        new_env['CLICKHOUSE_PASSWORD'] = config['ch_password']
+
+    return cmd, new_env
+
+
+# ------------------------------------------------------------------------------
+def create_db_and_table(config):
+
+    db_create = f"CREATE DATABASE IF NOT EXISTS {config['ch_table'].split('.')[0]};"
+    db_create += f"""
+        CREATE TABLE IF NOT EXISTS {config['ch_table']}
         (
             `ts` DateTime DEFAULT 0,
             `te` DateTime DEFAULT 0,
@@ -290,9 +372,16 @@ def create_db_and_table(client, db_and_table, ttl=90):
         PARTITION BY tuple()
         PRIMARY KEY (ts, te)
         ORDER BY (ts, te, sa, da)
-        TTL te + toIntervalDay({ttl})
+        TTL te + toIntervalDay({config['ch_ttl']});
     """
-    client.execute(tbl_create)
+
+    cmd, new_env = cmd_env_from_config(config)
+
+    try:
+        subprocess.run(cmd, input=db_create.encode(), env=new_env)
+    except Exception as e:
+        logger.error(f"Error creating database.table {config['ch_table']} : {e}")
+        return
 
 
 # ------------------------------------------------------------------------------
@@ -428,7 +517,7 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
 ###############################################################################
 def main():
 
-    global sig_received
+    global sig_received, logger
     def signal_handler(signum, frame):
         global sig_received
         sig_received = True
@@ -440,7 +529,7 @@ def main():
 
     pp = pprint.PrettyPrinter(indent=4)
 
-    logger = logging.getLogger(program_name)
+    # logger = logging.getLogger(program_name)
     logfile = None
 
     parser = parser_add_arguments()
@@ -473,9 +562,14 @@ def main():
     if args.b:
         watches.append({'watchdir': args.b,
                         'flowsrc': flowsrc,
+                        'ch_host': args.host,
+                        'ch_secure': None,
+                        'ch_verify': None,
+                        'ch_user': args.user,
+                        'ch_password': args.password,
                         'ch_table': db_tbl,
                         'ch_ttl': 90,
-                        'use_fmt': args.u})
+                        'use_fmt': args.n})
 
     # See if we have a config file
     if args.c and os.path.isfile(args.c):
@@ -489,6 +583,11 @@ def main():
         for section in config.sections():
             try:
                 watchdir = config[section]['watchdir']
+                ch_host = config[section].get('ch_host', None)
+                ch_secure = bool(config[section].get('ch_secure', False))
+                ch_verify = bool(config[section].get('ch_verify', False))
+                ch_user = config[section].get('ch_user', None)
+                ch_password = config[section].get('ch_password', None)
                 ch_table = config[section]['ch_table']
                 ch_ttl = config[section].get('ch_ttl', 90)
                 workers = int(config[section].get('workers', 1))
@@ -496,6 +595,11 @@ def main():
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
+                                    'ch_host': ch_host,
+                                    'ch_secure': ch_secure,
+                                    'ch_verify': ch_verify,
+                                    'ch_user': ch_user,
+                                    'ch_password': ch_password,
                                     'ch_table': ch_table,
                                     'flowsrc': section,
                                     'ch_ttl': ch_ttl,
@@ -520,9 +624,6 @@ def main():
         logger.error("A flowsrc needs to be specified when importing files")
         exit(1)
 
-    # Create database and table if they do not already exist
-    client = clickhouse_driver.Client(host='localhost',  settings={'use_numpy': False})
-
     logger.info(f"Starting {workers} workers for conversion")
 
     pool = Pool(workers, init_worker)
@@ -530,8 +631,19 @@ def main():
     if args.imports:
         # imports specified on the command line
         logger.info(f"Specified files to import into '{db_tbl}' with flowsrc='{flowsrc}':")
-        create_db_and_table(client, db_tbl)
-        # '.*/nfcapd.\d{12}'
+
+        # Create database and table if they do not already exist
+        config = {'ch_host': args.host,
+                  'ch_secure': False,
+                  'ch_verify': False,
+                  'ch_user': args.user,
+                  'ch_password': args.password,
+                  'ch_table': db_tbl,
+                  'flowsrc': flowsrc,
+                  'ch_ttl': 90,
+                  'use_fmt': args.n}
+        create_db_and_table(config)
+
         import_files = [str(f) for f in args.imports if re.fullmatch(r'.*/nfcapd.\d{12}', str(f))]
         logger.info(import_files)
         logger.info(f"{len(import_files)} files to import")
@@ -561,7 +673,7 @@ def main():
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u),
+            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.user),
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
@@ -575,7 +687,8 @@ def main():
         # no imports specified on the command line, so setting up watches
         observer = Observer()
         for watch in watches:
-            create_db_and_table(client, watch['ch_table'], watch['ch_ttl'])
+            # create_db_and_table(client, watch['ch_table'], watch['ch_ttl'])
+            create_db_and_table(watch)
             event_handler = Handler(pool,
                                     ch_table= watch['ch_table'],
                                     flowsrc=watch['flowsrc'],
