@@ -285,43 +285,6 @@ def parser_add_arguments():
     return parser
 
 
-# # ------------------------------------------------------------------------------
-# def create_db_and_table(client, db_and_table, ttl=90):
-#     db_create = f"CREATE DATABASE IF NOT EXISTS {db_and_table.split('.')[0]}"
-#     client.execute(db_create)
-#
-#     tbl_create = f"""
-#         CREATE TABLE IF NOT EXISTS {db_and_table}
-#         (
-#             `ts` DateTime DEFAULT 0,
-#             `te` DateTime DEFAULT 0,
-#             `sa` String,
-#             `da` String,
-#             `sp` UInt16 DEFAULT 0,
-#             `dp` UInt16 DEFAULT 0,
-#             `pr` Nullable(String),
-#             `flg` LowCardinality(String),
-#             `ipkt` UInt64,
-#             `ibyt` UInt64,
-#             `smk` UInt8,
-#             `dmk` UInt8,
-#             `ra` LowCardinality(String),
-#             `in` UInt16 DEFAULT 0,
-#             `out` UInt16 DEFAULT 0,
-#             `sas` UInt32 DEFAULT 0,
-#             `das` UInt32 DEFAULT 0,
-#             `exid` UInt16 DEFAULT 0,
-#             `flowsrc` LowCardinality(String)
-#         )
-#         ENGINE = MergeTree
-#         PARTITION BY tuple()
-#         PRIMARY KEY (ts, te)
-#         ORDER BY (ts, te, sa, da)
-#         TTL te + toIntervalDay({ttl})
-#     """
-#     client.execute(tbl_create)
-#
-#
 # ------------------------------------------------------------------------------
 def cmd_env_from_config(config):
     cmd = ['clickhouse-client']

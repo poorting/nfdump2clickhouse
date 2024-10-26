@@ -106,14 +106,18 @@ To indicate nfdump2clickhouse that it should specifically state the fields to be
 
 The quickest, easiest and preferred way - if you have [docker engine installed from the docker repositories](https://docs.docker.com/engine/install/debian/) - is to spin up a clickhouse docker container by issuing a ``docker compose up -d`` command in this directory. The resulting clickhouse instance will have no password set, but it is only reachable from the localhost. It will also be automatically restarted after reboot.
 
-If you really do want to install clickhouse directly on your machine, you can follow the [setup instructions](https://clickhouse.com/docs/en/install/#self-managed-install) at [clickhouse.com](https://clickhouse.com/) to setup a clickhouse server. Note that nfdump2clickhouse assumes that the default user can be used without password, so ensure this is the case **and** that clickhouse can only be reached from localhost!
+If you really do want to install clickhouse directly on your machine, you can follow the [setup instructions](https://clickhouse.com/docs/en/install/#self-managed-install) at [clickhouse.com](https://clickhouse.com/) to setup a clickhouse server. Note that by default nfdump2clickhouse assumes that the default user can be used without password, so wither ensure this is the case, or provide a user name and password. The user needs to have enough permissions to create the database and table and to insert data into that table.
+
+If clickhouse is running on another machine then the host (name or IP) can be provided in the configuration file or on the command line.
 
 #### Client
-**!!!Do NOT install clickhouse-client from your distros' repositories. That verion is *too old* to work!!!**
+nfdump2clickhouse uses clickhouse-client to interact with the clickhouse database. 
 
+**!!!Do NOT install clickhouse-client from your distros' repositories. That version is *too old* to work!!!**
 Follow the [instructions](https://clickhouse.com/docs/en/install/#available-installation-options) to install from DEB or RPM packages, but only install the client package (e.g. ``sudo apt-get install -y clickhouse-client``).
 
-If you have the server (container) running, the client can be started with ``clickhouse-client`` and should connect to the clickhouse server automatically. 
+
+If you have the server (container) running, the client can be started with ``clickhouse-client`` and should connect to the clickhouse server automatically if it is running on the same machine. If it is running on another machine check that you can reach it with the clickhouse-client by specifying the hostname (or IP) with the `--host` option. 
 
 
 #### Creating the database and table
@@ -147,8 +151,8 @@ Executing nfdump2clickhouse.py without arguments gives the list of options
 
 Error: No basedir or imports provided. Provide either a basedir, imports or a configuration file
 
-usage: nfdump2clickhouse.py [-h] [-b basedir] [-d database.table] [-j # of workers] [-f flowsrc] [-c config file]
-                            [-l log file] [-i IMPORTS [IMPORTS ...]] [-u] [--debug] [-V]
+usage: nfdump2clickhouse.py [-h] [-b basedir] [-d database.table] [--host host] [-u user] [-p password] [-j # of workers] [-f flowsrc]
+                            [-c config file] [-l log file] [-i IMPORTS [IMPORTS ...]] [-n] [--debug] [-V]
 
 Watches a directory (and its subdirectories) for new nfcapd files appearing,
  converts them to parquet and inserts into clickhouse.
@@ -160,6 +164,13 @@ options:
   -b basedir            Base directory to watch for nfdump files
   -d database.table     Database and table to use, specified as <db>.<table>.
                         Default is test.testflows if not specified
+  --host host           Clickhouse hostname.
+                        Default is localhost
+  -u user, --user user  Username for clickhouse-client to use for authenticating to clickhouse.
+                        Default is not to use any username (equal to the 'default' user)
+  -p password, --password password
+                        Password for clickhouse-client to use for authenticating to clickhouse.
+                        Default is not to use any password (the default user is passwordless)
   -j # of workers       Number of workers (processes) to start for conversion.
                         Defaults to 1 if not specified.
   -f flowsrc            Additional flowsrc name stored in the flowsrc column
@@ -170,7 +181,7 @@ options:
                         of logging to console.
   -i IMPORTS [IMPORTS ...], --import IMPORTS [IMPORTS ...]
                         nfcapd file(s) to convert and import, globbing supported
-  -u                    nfdump version newer than 1.7.4 use a different default csv output format
+  -n                    nfdump version newer than 1.7.4 use a different default csv output format
                         in which case a format string must be used for conversion to csv.
                         If you get errors along the lines of:
                         'ERROR - CSV parse error: Expected 48 columns, got 10'
