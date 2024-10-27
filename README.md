@@ -198,7 +198,7 @@ For basic testing simply provide a directory to watch (where nfcapd files are st
 ```
 For nfdump version > 1.7.4 use:
 ```
-./nfdump2clickhouse.py -b /data/live/router1 -u
+./nfdump2clickhouse.py -b /data/live/router1 -n
 ```
 
 This creates a test database (named 'test' appropriately) and a flows table called 'testflows'.
