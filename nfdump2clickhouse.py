@@ -303,7 +303,12 @@ def init_worker():
 
 
 # ------------------------------------------------------------------------------
-def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False, loglevel=logging.INFO):
+def convert(src_file: str,
+            ch_table='nfsen.flows',
+            flowsrc='test',
+            use_fmt=False,
+            loglevel=logging.INFO,
+            store_copy_dir: str=None):
 
     # Max size of chunk to read at a time
     block_size = 2 * 1024 * 1024
@@ -359,6 +364,10 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
     info_return['toCSV'] = duration
     logger.debug(f"{src_file} to CSV in {duration:.2f}s")
 
+    if store_copy_dir:
+        logger.debug(f"storing copy of temp CSV file in {store_copy_dir}/{os.path.basename(src_file)}.csv")
+        shutil.copyfile(tmp_filename, f"{store_copy_dir}/{os.path.basename(src_file)}.csv")
+
     # Create a temp file for the parquet file
     tmp_file, tmp_parquetfile = tempfile.mkstemp()
     os.close(tmp_file)
@@ -402,6 +411,9 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
     duration = time.time() - start
     info_return['toParquet'] = duration
     logger.debug(f"{src_file} CSV to Parquet in {duration:.2f}s")
+    if store_copy_dir:
+        logger.debug(f"storing copy of temp Parquet file in {store_copy_dir}/{os.path.basename(src_file)}.parquet")
+        shutil.copyfile(tmp_parquetfile, f"{store_copy_dir}/{os.path.basename(src_file)}.parquet")
 
     logger.debug(f"{src_file} Removing temporary file")
     # Remove temporary file
@@ -561,7 +573,7 @@ def main():
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u),
+            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u, logging.DEBUG, '.'),
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
