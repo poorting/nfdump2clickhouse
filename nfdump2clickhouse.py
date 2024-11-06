@@ -573,7 +573,7 @@ def main():
             if not sig_received:
                 if len(import_files)>0:
                     imp = import_files.pop()
-                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc),
+                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc, args.u),
                                       callback=completed_callback,
                                       error_callback=error_callback)
             else:
