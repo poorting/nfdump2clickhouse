@@ -303,7 +303,12 @@ def init_worker():
 
 
 # ------------------------------------------------------------------------------
-def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False, loglevel=logging.INFO):
+def convert(src_file: str,
+            ch_table='nfsen.flows',
+            flowsrc='test',
+            use_fmt=False,
+            loglevel=logging.INFO,
+            store_copy_dir: str=None):
 
     # Max size of chunk to read at a time
     block_size = 2 * 1024 * 1024
@@ -359,6 +364,10 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
     info_return['toCSV'] = duration
     logger.debug(f"{src_file} to CSV in {duration:.2f}s")
 
+    if store_copy_dir:
+        logger.debug(f"storing copy of temp CSV file in {store_copy_dir}/{os.path.basename(src_file)}.csv")
+        shutil.copyfile(tmp_filename, f"{store_copy_dir}/{os.path.basename(src_file)}.csv")
+
     # Create a temp file for the parquet file
     tmp_file, tmp_parquetfile = tempfile.mkstemp()
     os.close(tmp_file)
@@ -367,11 +376,23 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
     pqwriter = None
 
     try:
+        # Version 1.75-release of nfdump still outputs a header line when using -q option
+        # This messes up the conversion to parquet since every column is then assumed to be a string
+        # quick fix is to set skip_rows to 1 (rather than default 0)
+
+        # read first line to determine if it is a header line
+        skip_rows = 0
+        with open(tmp_filename) as fp:
+            header = fp.readline()
+            if header.startswith('firstSeen'):
+                skip_rows = 1
+                logger.debug("csv exported by nfdump still contains header line, skipping")
 
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
                                       block_size=block_size,
-                                      column_names=parquet_fields if use_fmt else nf_fields)
+                                      column_names=parquet_fields if use_fmt else nf_fields,
+                                      skip_rows=skip_rows)
                                   ) as reader:
             chunk_nr = 0
             for next_chunk in reader:
@@ -402,6 +423,9 @@ def convert(src_file: str, ch_table='nfsen.flows', flowsrc='test', use_fmt=False
     duration = time.time() - start
     info_return['toParquet'] = duration
     logger.debug(f"{src_file} CSV to Parquet in {duration:.2f}s")
+    if store_copy_dir:
+        logger.debug(f"storing copy of temp Parquet file in {store_copy_dir}/{os.path.basename(src_file)}.parquet")
+        shutil.copyfile(tmp_parquetfile, f"{store_copy_dir}/{os.path.basename(src_file)}.parquet")
 
     logger.debug(f"{src_file} Removing temporary file")
     # Remove temporary file
@@ -549,7 +573,7 @@ def main():
             if not sig_received:
                 if len(import_files)>0:
                     imp = import_files.pop()
-                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc),
+                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc, args.u, logger.level),
                                       callback=completed_callback,
                                       error_callback=error_callback)
             else:
@@ -561,7 +585,7 @@ def main():
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u),
+            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u, logger.level),
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
