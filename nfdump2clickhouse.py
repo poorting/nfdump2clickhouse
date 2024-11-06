@@ -386,6 +386,7 @@ def convert(src_file: str,
             header = fp.readline()
             if header.startswith('firstSeen'):
                 skip_rows = 1
+                logger.debug("csv exported by nfdump still contains header line, skipping")
 
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
@@ -584,7 +585,7 @@ def main():
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u, logging.DEBUG, '.'),
+            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u),
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
