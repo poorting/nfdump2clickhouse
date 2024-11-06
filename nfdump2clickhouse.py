@@ -376,11 +376,22 @@ def convert(src_file: str,
     pqwriter = None
 
     try:
+        # Version 1.75-release of nfdump still outputs a header line when using -q option
+        # This messes up the conversion to parquet since every column is then assumed to be a string
+        # quick fix is to set skip_rows to 1 (rather than default 0)
+
+        # read first line to determine if it is a header line
+        skip_rows = 0
+        with open(tmp_filename) as fp:
+            header = fp.readline()
+            if header.startswith('firstSeen'):
+                skip_rows = 1
 
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
                                       block_size=block_size,
-                                      column_names=parquet_fields if use_fmt else nf_fields)
+                                      column_names=parquet_fields if use_fmt else nf_fields,
+                                      skip_rows=skip_rows)
                                   ) as reader:
             chunk_nr = 0
             for next_chunk in reader:
