@@ -573,7 +573,7 @@ def main():
             if not sig_received:
                 if len(import_files)>0:
                     imp = import_files.pop()
-                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc, args.u),
+                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc, args.u, logger.level),
                                       callback=completed_callback,
                                       error_callback=error_callback)
             else:
@@ -585,7 +585,7 @@ def main():
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u),
+            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u, logger.level),
                               callback=completed_callback,
                               error_callback=error_callback)
         try:
