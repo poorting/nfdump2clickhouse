@@ -28,24 +28,52 @@ from pathlib import Path
 import re
 
 program_name = os.path.basename(__file__)
-VERSION = 0.1
+VERSION = "0.2.1"
 logger = logging.getLogger(program_name)
 
 sig_received = False
+
+IP_PROTO_STR = [
+    "HOPOPT", "ICMP", "IGMP", "GGP", "IPv4", "ST", "TCP", "CBT", "EGP", "IGP",
+    "BBN-RCC-MON", "NVP-II", "PUP", "ARGUS", "EMCON", "XNET", "CHAOS", "UDP", "MUX", "DCN-MEAS",
+    "HMP", "PRM", "XNS-IDP", "TRUNK-1", "TRUNK-2", "LEAF-1", "LEAF-2", "RDP", "IRTP", "ISO-TP4",
+    "NETBLT", "MFE-NSP", "MERIT-INP", "DCCP", "3PC", "IDPR", "XTP", "DDP", "IDPR-CMTP", "TP++",
+    "IL", "IPv6", "SDRP", "IPv6-Route", "IPv6-Frag", "IDRP", "RSVP", "GRE", "DSR", "BNA",
+    "ESP", "AH", "I-NLSP", "SWIPE", "NARP", "Min-IPv4", "TLSP", "SKIP", "IPv6-ICMP", "IPv6-NoNxt",
+    "IPv6-Opts", "any host internal", "CFTP", "any local network", "SAT-EXPAK", "KRYPTOLAN", "RVD", "IPPC", "any DFS", "SAT-MON",
+    "VISA", "IPCV", "CPNX", "CPHB", "WSN", "PVP", "BR-SAT-MON", "SUN-ND", "WB-MON", "WB-EXPAK",
+    "ISO-IP", "VMTP", "SECURE-VMTP", "VINES", "IPTM", "NSFNET-IGP", "DGP", "TCF", "EIGRP", "OSPFIGP",
+    "Sprite-RPC", "LARP", "MTP", "AX.25", "IPIP", "MICP", "SCC-SP", "ETHERIP", "ENCAP", "any private encryption scheme",
+    "GMTP", "IFMP", "PNNI", "PIM", "ARIS", "SCPS", "QNX", "A/N", "IPComp", "SNP",
+    "Compaq-Peer", "IPX-in-IP", "VRRP", "PGM", "any 0-hop protocol", "L2TP", "DDX", "IATP", "STP", "SRP",
+    "UTI", "SMP", "SM", "PTP", "ISIS over IPv4", "FIRE", "CRTP", "CRUDP", "SSCOPMCE", "IPLT",
+    "SPS", "PIPE", "SCTP", "FC", "RSVP-E2E-IGNORE", "Mobility Header", "UDPLite", "MPLS-in-IP", "manet", "HIP",
+    "Shim6", "WESP", "ROHC", "Ethernet", "AGGFRAG", "NSH", "Homa", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned", "Unassigned",
+    "Unassigned", "Unassigned", "Unassigned", "experimentation/testing", "experimentation/testing", "Reserved"
+]
+
 
 ###############################################################################
 # class Handler(PatternMatchingEventHandler):
 class Handler(RegexMatchingEventHandler):
 
-    def __init__(self, pool, ch_table='nfsen.flows', flowsrc='', use_fmt=False):
+    # def __init__(self, pool, ch_table='nfsen.flows', flowsrc='', use_fmt=False):
+    def __init__(self, pool, config):
         super().__init__(regexes=[r'.*/nfcapd.\d{12}'],
                          ignore_directories=True)
-        # super().__init__(regexes=['.*'],
-        #                  ignore_directories=True)
-        self.flowsrc = flowsrc
-        self.ch_table = ch_table
+        self.config = config
         self.pool = pool
-        self.use_fmt = use_fmt
+        # self.use_fmt = use_fmt
 
     def completed_callback(self, result):
         logger.info(f"Completed: {result['src']} in {result['toCSV']+result['toParquet']+result['toCH']:.2f} seconds")
@@ -56,7 +84,8 @@ class Handler(RegexMatchingEventHandler):
 
     def __convert(self, source_file):
         logger.info(f"Submitting {source_file} for conversion")
-        self.pool.apply_async(convert, args=(source_file, self.ch_table, self.flowsrc, self.use_fmt),
+        self.pool.apply_async(convert,
+                              args=(source_file,self.config),
                               callback=self.completed_callback,
                               error_callback=self.error_callback)
 
@@ -76,7 +105,6 @@ class Handler(RegexMatchingEventHandler):
     # Overriding the dispatch method to catch this exception and logging it...
     # So that at least the exception doesn't stop the watchdog
     def dispatch(self, event):
-        pp = pprint.PrettyPrinter(indent=4)
         try:
             if not isinstance(event, FileModifiedEvent):
                 logger.debug(event)
@@ -191,6 +219,33 @@ def parser_add_arguments():
                         action="store",
                         )
 
+    parser.add_argument("--host",
+                        metavar="host",
+                        help=textwrap.dedent('''\
+                        Clickhouse hostname.
+                        Default is localhost
+                        '''),
+                        action="store",
+                        )
+
+    parser.add_argument("-u", "--user",
+                        metavar="user",
+                        help=textwrap.dedent('''\
+                        Username for clickhouse-client to use for authenticating to clickhouse.
+                        Default is not to use any username (equal to the 'default' user)
+                        '''),
+                        action="store",
+                        )
+
+    parser.add_argument("-p", "--password",
+                        metavar="password",
+                        help=textwrap.dedent('''\
+                        Password for clickhouse-client to use for authenticating to clickhouse.
+                        Default is not to use any password (the default user is passwordless)
+                        '''),
+                        action="store",
+                        )
+
     parser.add_argument("-j",
                         metavar="# of workers",
                         help=textwrap.dedent('''\
@@ -236,7 +291,7 @@ def parser_add_arguments():
                         nargs='+', required=False,
                         dest='imports')
 
-    parser.add_argument('-u',
+    parser.add_argument('-n',
                         help=textwrap.dedent('''\
                         nfdump version newer than 1.7.4 use a different default csv output format
                         in which case a format string must be used for conversion to csv.
@@ -259,12 +314,30 @@ def parser_add_arguments():
 
 
 # ------------------------------------------------------------------------------
-def create_db_and_table(client, db_and_table, ttl=90):
-    db_create = f"CREATE DATABASE IF NOT EXISTS {db_and_table.split('.')[0]}"
-    client.execute(db_create)
+def cmd_env_from_config(config):
+    cmd = ['clickhouse-client']
+    if config['ch_host']:
+        cmd.extend(['--host', config['ch_host']])
+    if config['ch_secure']:
+        cmd.extend(['--secure'])
+        if not config['ch_verify']:
+            cmd.extend([' --accept-invalid-certificate'])
 
-    tbl_create = f"""
-        CREATE TABLE IF NOT EXISTS {db_and_table}
+    new_env = dict(os.environ)
+    if config['ch_user']:
+        new_env['CLICKHOUSE_USER'] = config['ch_user']
+    if config['ch_password']:
+        new_env['CLICKHOUSE_PASSWORD'] = config['ch_password']
+
+    return cmd, new_env
+
+
+# ------------------------------------------------------------------------------
+def create_db_and_table(config):
+
+    db_create = f"CREATE DATABASE IF NOT EXISTS {config['ch_table'].split('.')[0]};"
+    db_create += f"""
+        CREATE TABLE IF NOT EXISTS {config['ch_table']}
         (
             `ts` DateTime DEFAULT 0,
             `te` DateTime DEFAULT 0,
@@ -272,7 +345,8 @@ def create_db_and_table(client, db_and_table, ttl=90):
             `da` String,
             `sp` UInt16 DEFAULT 0,
             `dp` UInt16 DEFAULT 0,
-            `pr` Nullable(String),
+            `pr` UInt8,
+            `prs` LowCardinality(String),
             `flg` LowCardinality(String),
             `ipkt` UInt64,
             `ibyt` UInt64,
@@ -290,9 +364,16 @@ def create_db_and_table(client, db_and_table, ttl=90):
         PARTITION BY tuple()
         PRIMARY KEY (ts, te)
         ORDER BY (ts, te, sa, da)
-        TTL te + toIntervalDay({ttl})
+        TTL te + toIntervalDay({config['ch_ttl']});
     """
-    client.execute(tbl_create)
+
+    cmd, new_env = cmd_env_from_config(config)
+
+    try:
+        subprocess.run(cmd, input=db_create.encode(), env=new_env)
+    except Exception as e:
+        logger.error(f"Error creating database.table {config['ch_table']} : {e}")
+        return
 
 
 # ------------------------------------------------------------------------------
@@ -304,9 +385,7 @@ def init_worker():
 
 # ------------------------------------------------------------------------------
 def convert(src_file: str,
-            ch_table='nfsen.flows',
-            flowsrc='test',
-            use_fmt=False,
+            config,
             loglevel=logging.INFO,
             store_copy_dir: str=None):
 
@@ -352,7 +431,7 @@ def convert(src_file: str,
 
     try:
         with open(tmp_filename, 'a', encoding='utf-8') as f:
-            if use_fmt:
+            if config['use_fmt']:
                 subprocess.run(['nfdump', '-r', src_file, '-o', fmt_str, '-q'], stdout=f, env=new_env)
             else:
                 subprocess.run(['nfdump', '-r', src_file, '-o', 'csv', '-q'], stdout=f, env=new_env)
@@ -375,6 +454,13 @@ def convert(src_file: str,
     start = time.time()
     pqwriter = None
 
+    # Create a table with all protocols as strings to use for creating a string column
+    # of the protocol value by doing a join of the flows and protostrings table
+    protostrings = pa.table({
+        'pr': [i for i in range(len(IP_PROTO_STR))],
+        'prs': IP_PROTO_STR,
+    })
+
     try:
         # Version 1.75-release of nfdump still outputs a header line when using -q option
         # This messes up the conversion to parquet since every column is then assumed to be a string
@@ -391,7 +477,7 @@ def convert(src_file: str,
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
                                       block_size=block_size,
-                                      column_names=parquet_fields if use_fmt else nf_fields,
+                                      column_names=parquet_fields if config['use_fmt'] else nf_fields,
                                       skip_rows=skip_rows)
                                   ) as reader:
             chunk_nr = 0
@@ -401,13 +487,19 @@ def convert(src_file: str,
                     break
                 table = pa.Table.from_batches([next_chunk])
 
-                if not use_fmt:
+                if not config['use_fmt']:
                     try:
                         table = table.drop(drop_columns)
                     except KeyError as ke:
                         logger.error(ke)
 
-                table = table.append_column('flowsrc', [[flowsrc] * table.column('te').length()])
+                # Convert pr value to a string as well
+                table = table.join(protostrings, keys="pr")
+
+                # Append column with this flowsource's name
+                table = table.append_column(
+                    'flowsrc',
+                    [[config['flowsrc']] * table.column('te').length()])
 
                 if not pqwriter:
                     pqwriter = pq.ParquetWriter(tmp_parquetfile, table.schema)
@@ -435,7 +527,15 @@ def convert(src_file: str,
     start = time.time()
     try:
         with open(tmp_parquetfile, 'rb') as f:
-            subprocess.run(['clickhouse-client', '--query', f"INSERT INTO {ch_table} FORMAT Parquet"], stdin=f)
+            cmd, new_env = cmd_env_from_config(config)
+            cmd.append("--query")
+            cmd.append(f"INSERT INTO {config['ch_table']} FORMAT Parquet")
+            try:
+                subprocess.run(cmd, env=new_env, stdin=f)
+            except Exception as e:
+                logger.error(f"Error creating database.table {config['ch_table']} : {e}")
+                return
+
     except Exception as e:
         print(f'Error : {e}')
 
@@ -452,7 +552,7 @@ def convert(src_file: str,
 ###############################################################################
 def main():
 
-    global sig_received
+    global sig_received, logger
     def signal_handler(signum, frame):
         global sig_received
         sig_received = True
@@ -464,7 +564,7 @@ def main():
 
     pp = pprint.PrettyPrinter(indent=4)
 
-    logger = logging.getLogger(program_name)
+    # logger = logging.getLogger(program_name)
     logfile = None
 
     parser = parser_add_arguments()
@@ -497,9 +597,14 @@ def main():
     if args.b:
         watches.append({'watchdir': args.b,
                         'flowsrc': flowsrc,
+                        'ch_host': args.host,
+                        'ch_secure': None,
+                        'ch_verify': None,
+                        'ch_user': args.user,
+                        'ch_password': args.password,
                         'ch_table': db_tbl,
                         'ch_ttl': 90,
-                        'use_fmt': args.u})
+                        'use_fmt': args.n})
 
     # See if we have a config file
     if args.c and os.path.isfile(args.c):
@@ -513,6 +618,11 @@ def main():
         for section in config.sections():
             try:
                 watchdir = config[section]['watchdir']
+                ch_host = config[section].get('ch_host', None)
+                ch_secure = bool(config[section].get('ch_secure', False))
+                ch_verify = bool(config[section].get('ch_verify', False))
+                ch_user = config[section].get('ch_user', None)
+                ch_password = config[section].get('ch_password', None)
                 ch_table = config[section]['ch_table']
                 ch_ttl = config[section].get('ch_ttl', 90)
                 workers = int(config[section].get('workers', 1))
@@ -520,6 +630,11 @@ def main():
 
                 if os.path.isdir(watchdir):
                     watches.append({'watchdir': watchdir,
+                                    'ch_host': ch_host,
+                                    'ch_secure': ch_secure,
+                                    'ch_verify': ch_verify,
+                                    'ch_user': ch_user,
+                                    'ch_password': ch_password,
                                     'ch_table': ch_table,
                                     'flowsrc': section,
                                     'ch_ttl': ch_ttl,
@@ -544,9 +659,6 @@ def main():
         logger.error("A flowsrc needs to be specified when importing files")
         exit(1)
 
-    # Create database and table if they do not already exist
-    client = clickhouse_driver.Client(host='localhost',  settings={'use_numpy': False})
-
     logger.info(f"Starting {workers} workers for conversion")
 
     pool = Pool(workers, init_worker)
@@ -554,8 +666,19 @@ def main():
     if args.imports:
         # imports specified on the command line
         logger.info(f"Specified files to import into '{db_tbl}' with flowsrc='{flowsrc}':")
-        create_db_and_table(client, db_tbl)
-        # '.*/nfcapd.\d{12}'
+
+        # Create database and table if they do not already exist
+        config = {'ch_host': args.host,
+                  'ch_secure': False,
+                  'ch_verify': False,
+                  'ch_user': args.user,
+                  'ch_password': args.password,
+                  'ch_table': db_tbl,
+                  'flowsrc': flowsrc,
+                  'ch_ttl': 90,
+                  'use_fmt': args.n}
+        create_db_and_table(config)
+
         import_files = [str(f) for f in args.imports if re.fullmatch(r'.*/nfcapd.\d{12}', str(f))]
         logger.info(import_files)
         logger.info(f"{len(import_files)} files to import")
@@ -573,7 +696,7 @@ def main():
             if not sig_received:
                 if len(import_files)>0:
                     imp = import_files.pop()
-                    pool.apply_async(convert, args=(imp, db_tbl, flowsrc, args.u, logger.level),
+                    pool.apply_async(convert, args=(imp, config, logger.level),
                                       callback=completed_callback,
                                       error_callback=error_callback)
             else:
@@ -581,13 +704,22 @@ def main():
 
         def error_callback(error):
             logger.error(f"Error: {error}")
+            logger.info(f"{len(import_files)} left to ingest")
+            if not sig_received:
+                if len(import_files)>0:
+                    imp = import_files.pop()
+                    pool.apply_async(convert, args=(imp, config, logger.level),
+                                      callback=completed_callback,
+                                      error_callback=error_callback)
+            else:
+                logger.info("Signal received, not submitting new files for ingest")
 
         init_sub_nr = workers if workers<len(import_files) else len(import_files)
         for i in range(0, init_sub_nr):
             f = import_files.pop()
-            pool.apply_async(convert, args=(f, db_tbl, flowsrc, args.u, logger.level),
-                              callback=completed_callback,
-                              error_callback=error_callback)
+            pool.apply_async(convert, args=(f, config, logger.level),
+                             callback=completed_callback,
+                             error_callback=error_callback)
         try:
             while (not sig_received) and len(import_files) > 0:
                 time.sleep(1)
@@ -599,11 +731,9 @@ def main():
         # no imports specified on the command line, so setting up watches
         observer = Observer()
         for watch in watches:
-            create_db_and_table(client, watch['ch_table'], watch['ch_ttl'])
-            event_handler = Handler(pool,
-                                    ch_table= watch['ch_table'],
-                                    flowsrc=watch['flowsrc'],
-                                    use_fmt=watch['use_fmt'])
+            # create_db_and_table(client, watch['ch_table'], watch['ch_ttl'])
+            create_db_and_table(watch)
+            event_handler = Handler(pool, watch)
             observer.schedule(event_handler, watch['watchdir'], recursive=True)
             logger.info(f"Starting watch on {watch['watchdir']}, with flowsr='{watch['flowsrc']}'")
 
